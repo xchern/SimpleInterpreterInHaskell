@@ -12,11 +12,16 @@ nullEnvP = Map.null
 emptyEnv :: Env
 emptyEnv = Map.empty
 
+-- set to `Nil` to delete, just like lua
 insertBind :: Atom -> Value -> Env -> Env
+insertBind a Nil e = Map.delete a e
 insertBind a v e = Map.insert a v e
 
-lookupEnv :: Atom -> Env -> Maybe Value
-lookupEnv a e = Map.lookup a e
+-- undefined atom is default `Nil`, just like lua
+lookupEnv :: Atom -> Env -> Value
+lookupEnv a e = case Map.lookup a e of
+  Just v -> v
+  Nothing -> Nil
 
 -- left-biased
 unionEnv :: Env -> Env -> Env
@@ -33,7 +38,7 @@ instance Show Value where
   show (Logic b) = if b then "#t" else "#f"
   show (Number n) = show n
   show Nil = "nil"
-  show (Pair a b) = "(" ++ (show a) ++ "." ++ (show b) ++ ")"
+  show (Pair a b) = "(" ++ (show a) ++ " . " ++ (show b) ++ ")"
   show (Character c) = '\'' : c : "'"
   show (FunctionV _) = "<#function>"
 

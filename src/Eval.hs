@@ -1,61 +1,87 @@
 module Eval where
 
 import Value
-import Data.Maybe
+import Error
 
-evalExpr :: Expr -> Value
+evalExpr :: Expr -> Either Error Value
 evalExpr e = eval (Closure {exprC = e, envC = emptyEnv})
 
-eval :: Closure -> Value
+-- eval two expressions error if not both number
+evalGetTwoNumber :: Error -> (Expr, Expr) -> Closure -> Either Error (Double ,Double)
+evalGetTwoNumber err (a, b) c = do
+  ar <- eval c{exprC = a}
+  br <- eval c{exprC = b}
+  case (ar, br) of
+    (Number av, Number bv) -> Right (av, bv)
+    _ -> Left err
+
+eval :: Closure -> Either Error Value
 eval c@(Closure env expr) = case expr of
-  (Lit x) -> x
-  (Not x) -> let (Logic xv) = eval c{exprC = x} in
-               (Logic (not xv))
--- eval (Not (Lit (Logic True)))
-  (And a b) -> let (Logic av) = eval c{exprC = a}
-                   (Logic bv) = eval c{exprC = b} in
-                 Logic (av && bv)
--- eval (And (Lit (Logic True)) (Lit (Logic False)))
+  -- literal values
+  (Lit x) -> Right x
+  -- logic operations
+  (Not x) -> do
+    xr <- eval c{exprC = x}
+    case xr of
+      (Logic xv) -> Right $ Logic (not xv)
+      _ -> Left $ TypeError "`not` should be called with bool"
+  (And a b) -> do
+    ar <- eval c{exprC = a}
+    br <- eval c{exprC = b}
+    case (ar, br) of
+      (Logic av, Logic bv) -> Right $ Logic (av && bv)
+      _ -> Left $ TypeError "`and` should be called with bool"
   (Or a b) -> eval c{exprC = (Not (And (Not a) (Not b)))}
--- eval (Or (Lit (Logic True)) (Lit (Logic False)))
 -- Numeric Operations
-  (Sum a b) -> let (Number av) = eval c{exprC = a}
-                   (Number bv) = eval c{exprC = b} in
-                 (Number (av + bv))
-  (Difference a b) -> let (Number av) = eval c{exprC = a}
-                          (Number bv) = eval c{exprC = b} in
-                        (Number (av - bv))
-  (Product a b) -> let (Number av) = eval c{exprC = a}
-                       (Number bv) = eval c{exprC = b} in
-                     (Number (av * bv))
-  (Quotinant a b) -> let (Number av) = eval c{exprC = a}
-                         (Number bv) = eval c{exprC = b} in
-                       (Number (av / bv))
+  (Sum a b) -> evalGetTwoNumber (TypeError "`+` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Number (av + bv))
+  (Difference a b) -> evalGetTwoNumber (TypeError "`-` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Number (av - bv))
+  (Product a b) -> evalGetTwoNumber (TypeError "`*` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Number (av * bv))
+  (Quotinant a b) -> evalGetTwoNumber (TypeError "`/` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Number (av / bv))
 -- Numeric Comparation Operation
-  (Equal a b) -> let (Number av) = eval c{exprC = a}
-                     (Number bv) = eval c{exprC = b} in
-                   (Logic (av == bv))
-  (Less a b) -> let (Number av) = eval c{exprC = a}
-                    (Number bv) = eval c{exprC = b} in
-                  (Logic (av < bv))
-  (LessEqual a b) -> let (Number av) = eval c{exprC = a}
-                         (Number bv) = eval c{exprC = b} in
-                       (Logic (av <= bv))
-  (Greater a b) -> let (Number av) = eval c{exprC = a}
-                       (Number bv) = eval c{exprC = b} in
-                     (Logic (av > bv))
-  (GreaterEqual a b) -> let (Number av) = eval c{exprC = a}
-                            (Number bv) = eval c{exprC = b} in
-                          (Logic (av >= bv))
+  (Equal a b) -> evalGetTwoNumber (TypeError "`=` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Logic (av == bv))
+  (Less a b) -> evalGetTwoNumber (TypeError "`<` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Logic (av < bv))
+  (LessEqual a b) -> evalGetTwoNumber (TypeError "`<=` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Logic (av <= bv))
+  (Greater a b) -> evalGetTwoNumber (TypeError "`>` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Logic (av > bv))
+  (GreaterEqual a b) -> evalGetTwoNumber (TypeError "`>=` should be called with number") (a, b) c
+               >>= (\(av, bv) -> Right $ Logic (av >= bv))
 -- List Operation
-  (Cons a b) -> (Pair (eval c{exprC = a}) (eval c{exprC = b}))
-  (Car p) -> let (Pair car _) = eval c{exprC = p} in car
-  (Cdr p) -> let (Pair _ cdr) = eval c{exprC = p} in cdr
+  (Cons a b) -> do
+    ar <- eval c{exprC = a}
+    br <- eval c{exprC = b}    
+    Right $ Pair ar br
+  (Car p) -> do
+    pr <- eval c{exprC = p}
+    case pr of
+      (Pair car _) -> Right car
+      _ -> Left $ TypeError "`car` should be called with pairs"
+  (Cdr p) -> do
+    pr <- eval c{exprC = p}
+    case pr of
+      (Pair _ cdr) -> Right cdr
+      _ -> Left $ TypeError "`cdr` should be called with pairs"
 -- Functional
-  (Atom a) -> fromJust (lookupEnv a env)
-  (Lambda a e) -> FunctionV $ Function{paramF = a, closureF = c{exprC = e}} -- save environment
-  (Apply func paramExpr) -> let (FunctionV f) = eval c{exprC = func}
-                                paramV = eval c{exprC = paramExpr} in
-                              eval (closureF f){envC = insertBind (paramF f) paramV (envC $ closureF f)}
-  (If cond tv fv) -> let (Logic cv) = eval c{exprC = cond} in
-                       if cv then eval c{exprC = tv} else eval c{exprC = fv}
+  (Atom a) -> Right $ lookupEnv a env
+  (Lambda a e) -> Right $ FunctionV $ Function{paramF = a, closureF = c{exprC = e}} -- save environment
+  (Apply func paramExpr) -> do
+    fr <- eval c{exprC = func}
+    case fr of
+      FunctionV f -> do
+        paramV <- eval c{exprC = paramExpr}
+        eval (closureF f){envC = insertBind (paramF f) paramV (envC $ closureF f)}
+      _ -> Left $ TypeError "try to call a variable which is not function"
+  -- conditional expression
+  -- `False` and `Nil` Treated as falsy value, others as true
+  (If cond tv fv) -> do
+    condr <- eval c{exprC = cond}
+    case condr of
+      Logic cv -> if cv then eval c{exprC = tv} else eval c{exprC = fv}
+      Nil -> eval c{exprC = fv}
+      _ -> eval c{exprC = tv}

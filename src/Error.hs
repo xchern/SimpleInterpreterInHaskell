@@ -1,6 +1,4 @@
 module Error where
 
-data Error = ParserError String
+data Error = ParseError String
            | TypeError String
-           -- Refering to undefined atom
-           | ReferenceError String

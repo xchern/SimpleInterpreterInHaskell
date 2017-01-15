@@ -1,15 +1,28 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Parser where
+module Parser ( parseToAST
+              )
+where
 
 import Data.Functor
 import Control.Applicative
 import Data.Attoparsec.Text
 import Data.Text(Text)
-import Data.Char(isAlpha)
 
 import Value
 import Error
 
+-- Ultimate parser - source to error or some ASTs
+parseToAST :: Text -> Either Error [Expr]
+parseToAST t = case parseOnly parseExprs' t of
+  Left msg -> Left $ ParseError msg
+  Right r -> Right r
+  where parseExprs' =
+          (endOfInput $> [])
+          <|> do
+          expr <- parseExpr
+          exprs <- parseExprs'
+          return (expr:exprs)
+  
 -- -- Parse Value series
 
 -- Parse Logic
@@ -75,10 +88,7 @@ parseValue = parseLogic
 
 -- -- parse expressions series
 
--- space tolenrence decorater
-spaceTD :: Parser m -> Parser m
-spaceTD p = skipSpace >> p
-
+-- inside parenthesis decorator
 insideParent :: Parser m -> Parser m
 insideParent p = do
   char '('
@@ -105,7 +115,8 @@ parseSExprBinary fId cons = insideParent $ do
   return (cons expr1 expr2)
 
 parseExpr :: Parser Expr
-parseExpr = (parseValue >>= return . Lit) -- literal value
+parseExpr =
+     (parseValue >>= return . Lit) -- literal value
   <|> parseSExprUnitary "not" Not
   <|> parseSExprBinary "and" And
   <|> parseSExprBinary "or" Or
@@ -122,10 +133,11 @@ parseExpr = (parseValue >>= return . Lit) -- literal value
   <|> parseSExprUnitary "car" Car
   <|> parseSExprUnitary "cdr" Cdr
   -- functional programming paradigm
-  <|> (parseAtom >>= return . Atom)
   <|> parseLambda
   <|> parseApply
   <|> parseIf
+  <|> parseLet
+  <|> (parseAtom >>= return . Atom)
 
 parseAtom :: Parser String
 parseAtom = do
@@ -145,7 +157,7 @@ parseLambda :: Parser Expr
 parseLambda = insideParent $ do
   string "lambda"
   skipSpace
-  a <- insideParent parseAtom
+  a <- parseAtom
   skipSpace
   expr <- parseExpr
   return (Lambda a expr)
@@ -167,3 +179,15 @@ parseIf = insideParent $ do
   skipSpace
   fv <- parseExpr
   return (If cond tv fv)
+
+-- `let` is just syntactic sugar
+parseLet :: Parser Expr
+parseLet = insideParent $ do
+  string "let"
+  skipSpace
+  k <- parseAtom
+  skipSpace
+  v <- parseExpr
+  skipSpace
+  e <- parseExpr
+  return (Apply (Lambda k e) v)
