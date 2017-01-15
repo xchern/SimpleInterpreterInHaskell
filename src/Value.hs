@@ -22,10 +22,6 @@ lookupEnv a e = Map.lookup a e
 unionEnv :: Env -> Env -> Env
 unionEnv = Map.union
 
-data Function = Function { paramF :: Atom
-                         , closureF :: Closure
-                         }
-
 data Value = Logic Bool
            | Number Double
            | Nil
@@ -44,10 +40,16 @@ instance Show Value where
 
 -- Clousure - the key of implementation of lexical scope
 -- considering all data are mutable,
--- upvalues can be simplified, just combine them into Env.
+
+-- Immmutable upvalues can be simplified, just combine them into Env.
 data Closure = Closure { envC :: Env
                        , exprC :: Expr
                        } deriving Show
+
+-- Function save contex and parameter name
+data Function = Function { paramF :: Atom -- parameter name
+                         , closureF :: Closure
+                         }
 
 -- normal expression
 data Expr = Lit Value

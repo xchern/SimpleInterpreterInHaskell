@@ -53,9 +53,9 @@ eval c@(Closure env expr) = case expr of
   (Cdr p) -> let (Pair _ cdr) = eval c{exprC = p} in cdr
 -- Functional
   (Atom a) -> fromJust (lookupEnv a env)
-  (Lambda a e) -> FunctionV $ Function{paramF = a, closureF = c{exprC = e}} -- delay eval
+  (Lambda a e) -> FunctionV $ Function{paramF = a, closureF = c{exprC = e}} -- save environment
   (Apply func paramExpr) -> let (FunctionV f) = eval c{exprC = func}
                                 paramV = eval c{exprC = paramExpr} in
-                              eval (closureF f){envC = unionEnv (envC $ closureF f) $ insertBind (paramF f) paramV (envC c)} -- biased with upvalues
+                              eval (closureF f){envC = insertBind (paramF f) paramV (envC $ closureF f)}
   (If cond tv fv) -> let (Logic cv) = eval c{exprC = cond} in
                        if cv then eval c{exprC = tv} else eval c{exprC = fv}
