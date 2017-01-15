@@ -3,9 +3,11 @@ module Main where
 import Control.Applicative
 import Control.Monad.State
 import System.Environment
+import System.IO
+import qualified Data.Text as Text
 import qualified Data.Text.IO as IO
 
-import Interface as I
+import Interface
 
 data Action = Interprete | Parse
   deriving Show
@@ -16,7 +18,9 @@ data Out = StdOut | File FilePath
 data Option = Option { inPath :: String
                      , outPath :: Out
                      , action :: Action
-                     } deriving Show
+                     }
+            | REPL
+            deriving Show
 
 type Parser a = StateT [String] Maybe a
 
@@ -52,6 +56,9 @@ parseOutPath = parseField "-o"
 
 parseOption :: Parser Option
 parseOption = do
+  parseFlag "-repl"
+  return REPL
+  <|> do
   i <- parseInPathI
   o <- parseOutPath
   return (Option i (File o) Interprete)
@@ -70,15 +77,23 @@ main :: IO ()
 main = do
     args <- getArgs
     case runStateT parseOption args of
+      Just (REPL, _) -> repl
       Just (Option pIn o a, _) -> let
         instream = IO.readFile pIn
         outstream = case o of
                       StdOut -> putStr
-                      File po -> writeFile po
-        in
+                      File po -> writeFile po in
         case a of
           Interprete -> (instream >>= (outstream . interprete))
           Parse -> (instream >>= (outstream . parse))
       Nothing -> do
         putStrLn "Ill Arguments."
-        putStrLn "use -i/-t <src-file> [-o <output-file>]"
+        putStrLn "use with [-repl] [-i SRC-FILE] [-t SRC-FILE] [-o OUTPUT-FILE]"
+
+repl :: IO ()
+repl = do
+  putStr ">> " -- IO monad bind :P
+  hFlush stdout
+  line <- getLine
+  putStr $ interprete (Text.pack line)
+  repl
