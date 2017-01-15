@@ -20,6 +20,7 @@ parseToAST t = case parseOnly parseExprs' t of
           (endOfInput $> [])
           <|> do
           expr <- parseExpr
+          skipSpace
           exprs <- parseExprs'
           return (expr:exprs)
   

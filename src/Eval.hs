@@ -15,6 +15,7 @@ evalGetTwoNumber err (a, b) c = do
     (Number av, Number bv) -> Right (av, bv)
     _ -> Left err
 
+-- Either Monad used here make evaluation no longer strict
 eval :: Closure -> Either Error Value
 eval c@(Closure env expr) = case expr of
   -- literal values
@@ -79,9 +80,9 @@ eval c@(Closure env expr) = case expr of
       _ -> Left $ TypeError "try to call a variable which is not function"
   -- conditional expression
   -- `False` and `Nil` Treated as falsy value, others as true
-  (If cond tv fv) -> do
+  (If cond t f) -> do
     condr <- eval c{exprC = cond}
     case condr of
-      Logic cv -> if cv then eval c{exprC = tv} else eval c{exprC = fv}
-      Nil -> eval c{exprC = fv}
-      _ -> eval c{exprC = tv}
+      Logic False -> eval c{exprC = f}
+      Nil -> eval c{exprC = f}
+      _ -> eval c{exprC = t}

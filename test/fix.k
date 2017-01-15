@@ -1,6 +1,9 @@
+(let comment "
+basic functional programing feature demo using fixed-combinator.
+Will get `(1.0 . (2.0 . (6.0 . (24.0 . (120.0 . (720.0 . (5040.0 . (40320.0 . (362880.0 . (3628800.0 . nil))))))))))`
+" nil)
 (let y
-    (lambda f ((lambda x (f (x x)))
-               (lambda x (f (x x)))))
+    (lambda f ((lambda x (f (lambda v ((x x) v)))) (lambda x (f (lambda v ((x x) v))))))
 (let fac
     (y (lambda fac
          (lambda n
@@ -27,7 +30,3 @@
            (cons 10
            nil)))))))))))
 )))
-"
-basic functional programing feature demo with fixed-combinator.
-Will get `(1.0 . (2.0 . (6.0 . (24.0 . (120.0 . (720.0 . (5040.0 . (40320.0 . (362880.0 . (3628800.0 . nil))))))))))`
-"
